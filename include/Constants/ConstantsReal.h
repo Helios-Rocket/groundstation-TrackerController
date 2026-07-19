@@ -1,96 +1,115 @@
 #pragma once
 
 #include <Arduino.h> // removes errors on uints
-#include <chrono>
 
 ////////////////////////////////////////////////////////////////////// Tuning Parameters //////////////////////////////////////////////////////////////////////
 
-constexpr float azimuthMaxVelocity      = 10.0; // degrees per second
-constexpr float azimuthMaxAcceleration  = 5.0; // degrees per second^2
-
-constexpr float azimuthAcceptableError = 4.0; // degrees
-constexpr float azimuthAcceptableVelocityError = 2.0; // degrees per second
-
-constexpr float azimuthFF   = 0.05; // technically units of velocity
-constexpr float azimuthkP   = 0.3; // unitless
-constexpr float azimuthkI   = 0.0; // unitless
-constexpr float azimuthkD   = 1.0; // unitless
-
-constexpr float homingVelocity = 0.5; // degrees per second
+// All measurements in this section are on the output axis.
 
 
-constexpr float elevationMaxVelocity      = 7.0; // degrees per second
-constexpr float elevationMaxAcceleration  = 11.0; // degrees per second^2
+//////////////////// AZIMUTH
+const float azimuthMaxVelocity      = 1.0; // degrees per second
+const float azimuthMaxAcceleration  = 100.0; // degrees per second^2
 
-constexpr float elevationAcceptableError = 4.0; // degrees
-constexpr float elevationAcceptableVelocityError = 10.0; // degrees per second
+// currently unused
+const float azimuthAcceptableError         = 0.0; // degrees
+const float azimuthAcceptableVelocityError = 0.0; // degrees per second
 
-constexpr float elevationFF   = 1.6; // technically units of velocity
-constexpr float elevationkP   = 0.5; // unitless
-constexpr float elevationkI   = 0.6; // unitless
-constexpr float elevationkD   = 0.1; // unitless
-constexpr float elevationGravityCompFactor = 0.5; // technically not unitless, but determined emperically, not by calculation
+const float azimuthPositionKP = 0.0;
+const float azimuthPositionKI = 0.0;
+const float azimuthPositionKD = 0.0;
 
-constexpr float controlLoopTimeStep = 10000; // microseconds - 10000us = 10ms = 100Hz control loop update rate
+const float azimuthVelocityKP = 0.0;
+const float azimuthVelocityKI = 0.0;
+const float azimuthVelocityKD = 0.0;
+
+const float azimuthPositionStrength = 0.0;
+const float azimuthVelocityStrength = 0.0;
+
+//////////////////// ELEVATION
+const float elevationMaxVelocity      = 1.0; // degrees per second
+const float elevationMaxAcceleration  = 100.0; // degrees per second^2
+
+// currently unused
+const float elevationAcceptableError         = 0.0; // degrees
+const float elevationAcceptableVelocityError = 0.0; // degrees per second
+
+const float elevationPositionKP = 0.0;
+const float elevationPositionKI = 0.0;
+const float elevationPositionKD = 0.0;
+
+const float elevationVelocityKP = 0.0;
+const float elevationVelocityKI = 0.0;
+const float elevationVelocityKD = 0.0;
+
+const float elevationPositionStrength = 0.0;
+const float elevationVelocityStrength = 0.0;
+
+
+
+
+// how quickly do we run the loop?
+const float controlLoopUpdateRate = 100; // Hertz
 
 ////////////////////////////////////////////////////////////////////// Physical Constants //////////////////////////////////////////////////////////////////////
 
-constexpr float azimuthMainGearTeeth = 480; // gear teeth
-constexpr float azimuthMotorPinionTeeth = 40; // gear teeth
-constexpr float azimuthEncoderPinionTeeth = 40; // gear teeth
+//////////////////// AZIMUTH
+const uint azimuthMainGearTeeth = 120; // gear teeth
+const uint azimuthMotorPinionTeeth = 24; // gear teeth
+const uint azimuthGearboxRatio = 520; // gear ratio, NEED TO VERIFY
 
-constexpr float azimuthGearRatio = (azimuthMainGearTeeth/azimuthMotorPinionTeeth);
+constexpr float azimuthGearRatio = (((float)azimuthMotorPinionTeeth/(float)azimuthMainGearTeeth) * (1.0/(float)azimuthGearboxRatio));
 
-constexpr float azimuthZeroOffsetDegrees = 64.011; // degrees around main azimuth axis
-// constexpr float azimuthZeroOffsetDegrees = 0.0;
+const uint azimuthActualTicksPerMotorRev = 4; // NEED TO VERIFY
+const uint azimuthTicksPerMotorRev = 4 * azimuthActualTicksPerMotorRev;
 
-constexpr float elevationGearboxReduction = 20; // ratio
-constexpr float elevationChainReduction = 3; // ratio
+constexpr double azimuthDegreesPerTick = azimuthGearRatio * azimuthTicksPerMotorRev / 360.0;
 
-constexpr float elevationGearRatio = (elevationGearboxReduction * elevationChainReduction);
 
-constexpr int azimuthEncoderActualTicksPerRev = 600; // encoder ticks per rev
-constexpr float azimuthEncoderTicksPerRev = azimuthEncoderActualTicksPerRev*4; // quadurature counting means 4 counts per pulse
+//////////////////// ELEVATION
+const uint elevationMainGearTeeth = 84; // gear teeth
+const uint elevationMotorPinionTeeth = 13; // gear teeth
 
-constexpr int microStepResolutionAzimuth = 40000;
-constexpr int microStepResolutionElevation = 40000;
-constexpr float DegreesPerStepAzimuth = 1.8f;
-constexpr float DegreesPerStepElevation = 1.8f;
+constexpr float elevationDriveGearRatio = ((float)elevationMotorPinionTeeth / (float)elevationMainGearTeeth);
+
+const uint elevationEncoderGearTeeth = 42;
+const uint elevationEncoderPinionTeeth = 36;
+
+constexpr float elevationEncoderGearRatio ((float)elevationEncoderPinionTeeth / (float)elevationEncoderGearTeeth);
+
+const uint32_t microStepResolutionElevation = 40000;
+const float DegreesPerStepElevation = 1.8f;
 
 ////////////////////////////////////////////////////////////////////// Sensor Calibration Values //////////////////////////////////////////////////////////////////////
 
-// must be determined emperically 
-constexpr uint16_t elevationMinimumValue = 180; // ADC reading value
-constexpr uint16_t elevationMaximumValue = 837; // ADC reading value
+
+// must be determined / defined
+const float azimuthMinimumAngle = -120.0f; // degrees
+const float azimuthMaximumAngle = 120.0f; // degrees
+
+const float azimuthZeroReading = 0.0f; // degrees
+
 
 // must be determined/defined
-constexpr float elevationMinimumAngle = 0.0f; // degrees
-constexpr float elevationMaximumAngle = 180.0f; // degrees
+const float elevationMinimumAngle = 0.0f; // degrees
+const float elevationMaximumAngle = 100.0f; // degrees
 
-// this assumes a linear relationship (which should be true since we bought linear pots)
-        // TO:DO - new pot is non-linear. we need to handle that. lookup table?
-constexpr double elevationConversionRatio ( (elevationMaximumAngle-elevationMinimumAngle) / (elevationMaximumValue-elevationMinimumValue) ); // adc readings to degrees
+const float elevationZeroReading = 0.0f; // degrees
 
-// 360 degrees / ticks per revolution * gear ratio
-constexpr double azimuthConversionRatio ( (360/azimuthEncoderTicksPerRev) * (azimuthEncoderPinionTeeth / azimuthMainGearTeeth) ); // encoder ticks to degrees
 
 ////////////////////////////////////////////////////////////////////// Pins //////////////////////////////////////////////////////////////////////
 
-#define LED_POLARIS 6
+const uint8_t azimuthEncoderA = 22;
+const uint8_t azimuthEncoderB = 23;
 
-constexpr uint8_t azimuthEncoderA = 32;
-constexpr uint8_t azimuthEncoderB = 33;
+const uint8_t azimuthIN1 = 1;
+const uint8_t azimuthIN2 = 2;
+const uint8_t azimuthPWM = 3;
 
-constexpr uint8_t azimuthLimitSwitch = 9;
+const uint8_t elevationStep = 6;
+const uint8_t elevationDirection = 5;
+const uint8_t elevationEnable = 4;
+const uint8_t elevationAlarm = 0;
 
-constexpr uint8_t azimuthStep = 11;
-constexpr uint8_t azimuthDirection = 12;
-constexpr uint8_t azimuthEnable = 10;
-
-constexpr uint8_t elevationPotentiometer = 17;
-
-constexpr uint8_t elevationStep = 25;
-constexpr uint8_t elevationDirection = 24;
-constexpr uint8_t elevationEnable = 7;
-constexpr uint8_t elevationStep2 = 8;
-constexpr uint8_t elevationDirection2 = 20;
+const uint8_t elevationSDA = 18;
+const uint8_t elevationSCL = 19;

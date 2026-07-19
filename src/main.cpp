@@ -8,78 +8,61 @@
 #ifdef REAL
   #include "Constants/ConstantsReal.h"
 #endif
-#ifdef SUBSCALE
-  #include "Constants/ConstantsSubscale.h"
-#endif
-#ifdef SIM
-  #include "Constants/ConstantsSim.h"
-#endif // platform specific defines
+// #ifdef SUBSCALE
+//   #include "Constants/ConstantsSubscale.h"
+// #endif
+// #ifdef SIM
+//   #include "Constants/ConstantsSim.h"
+// #endif // platform specific defines
 
 // axis controller code
 #include "AxisController.h"
 
-// stepper driver code
-#include "StepDriver.h"
+// motor driver code
+#include "MotorDrivers/MotorDriver.h"
+#include "MotorDrivers/DCDriver.h"
+#include "MotorDrivers/StepDriver.h"
 
 // positional feedback code
-#include "EncoderSensor.h"
-#include "PotSensor.h"
-
-// IMU code
-#include "IMU.h"
+#include "Sensors/Sensor.h"
+#include "Sensors/EncoderSensor.h"
+#include "Sensors/MagneticEncoderSensor.h"
 
 // this handles our interfacing to the outside world
-#include "StreamInterface.h"
+// #include "StreamInterface.h"
 
 // temporary serial interface code for tuning / bringup
 // #include "TunerInterface.h"
 
-// #define DEBUG
+#define DEBUG
 
 ////////////////////////////////////////////////////////////////////// Global Objects //////////////////////////////////////////////////////////////////////
 
 // hardware declerations for azimuth axis
 Sensor* azimuthSensor = new EncoderSensor();
-StepDriver azimuthMotorDriver;
-
-// motion controller defs for the azimuth axis
-AxisController azimuthController(&azimuthMotorDriver, azimuthEnable, azimuthSensor);
+MotorDriver* azimuthMotorDriver = new DCDriver();
 
 // hardware declerations for elevation axis
-Sensor* elevationSensor = new PotSensor();
-StepDriver elevationMotorDriver;
+Sensor* elevationSensor = new MagneticEncoderSensor();
+MotorDriver* elevationMotorDriver = new StepDriver();
 
-// motion controller defs for the elevation axis
-AxisController elevationController(&elevationMotorDriver, elevationEnable, elevationSensor);
-
-// IMU abstraction object over both chips for accel, gyro & mag
-IMU imu;
+// motion controller defs
+AxisController azimuthController(azimuthMotorDriver, azimuthSensor);
+AxisController elevationController(elevationMotorDriver, elevationSensor);
 
 // serial interface
-StreamInterface serialInterface(&SerialUSB, azimuthSensor, elevationSensor, &azimuthController, &elevationController, &imu);
+// StreamInterface serialInterface(&SerialUSB, azimuthSensor, elevationSensor, &azimuthController, &elevationController);
 
-// tuning interface
-// TunerInterface tuner(&SerialUSB);
 
 TeensyTimerTool::PeriodicTimer interfaceTimer(TeensyTimerTool::TCK);
 TeensyTimerTool::PeriodicTimer debugPrintTimer(TeensyTimerTool::TCK);
 TeensyTimerTool::PeriodicTimer blinkTimer(TeensyTimerTool::TCK);
-TeensyTimerTool::PeriodicTimer sensorVelocityTimer(TeensyTimerTool::TCK);
-
 
 ////////////////////////////////////////////////////////////////////// Local Function Declarations //////////////////////////////////////////////////////////////////////
 
-void interfaceLoop();
-
 void debugPrint();
-void interface();
 
 void configureHardware(); // provides pin mappings and tuning parameters to objects
-
-// tuner application related functions
-void runTuner();
-void calculateVelAccel(float actualPos);
-void sendTunerData(float desiredPos, float actualPos, float desiredVel, float actualVelocity, float desiredAcc, float actualAccel);
 
 ////////////////////////////////////////////////////////////////////// setup() //////////////////////////////////////////////////////////////////////
 
@@ -92,104 +75,34 @@ void setup()
 
   configureHardware(); // setup pins and tuning parameters for controllers
 
-  debugPrintTimer.begin(debugPrint, 100ms); // thank you std::chrono for readable units
-  interfaceTimer.begin(interfaceLoop, 10ms); // 100000 in µs = 100ms = 0.1s
-
-  blinkTimer.begin([]{digitalToggle(LED_POLARIS);}, 1s); // thank you std::chrono for readable units
-
-  sensorVelocityTimer.begin([]{azimuthSensor->updateVelocity();elevationSensor->updateVelocity();}, 100ms); // thank you std::chrono for readable units
+  // start timers
+  debugPrintTimer.begin(debugPrint, 100ms); 
+  // interfaceTimer.begin(interfaceLoop, 10ms); 
+  blinkTimer.begin([]{digitalToggle(LED_BUILTIN);}, 1s); 
+  // sensorVelocityTimer.begin([]{azimuthSensor->updateVelocity();elevationSensor->updateVelocity();}, 100ms);
 
   // start actual things
-  azimuthController.begin();  
-  elevationController.begin();
+  // azimuthController.begin();  
+  // elevationController.begin();
 
   // start LEDS
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(LED_POLARIS, OUTPUT);
   digitalWrite(LED_BUILTIN, LOW);
-  digitalWrite(LED_POLARIS, LOW);
-
-#ifdef REAL // subscale doesn't have an IMU
-  imu.begin();
-#endif
 
   // actual begin code
   delay(10);
 #ifdef DEBUG
-  // elevationMotorDriver.begin();
-  // elevationSensor->begin();
+  elevationSensor->begin();
+  azimuthSensor->begin();
+  elevationMotorDriver->begin();
+  azimuthMotorDriver->begin();
 
-  // pinMode(azimuthEnable, OUTPUT); digitalWrite(azimuthEnable, LOW);
-  // pinMode(elevationEnable, OUTPUT); digitalWrite(elevationEnable, LOW);
-  
-  // azimuthMotorDriver.setVelocityCommand(5);
-  // elevationMotorDriver.setVelocityCommand(-100);
-  
-  // azimuthController.homeController();
-  // elevationController.homeController();
+  // azimuthMotorDriver->setVelocityCommand(3500);
+  // min, approx 2300
+  // max, approx 3500
 
-  // while(!azimuthSensor->isZeroed()){delay(1);};
+  // elevationMotorDriver->setVelocityCommand(0.6);
 
-  
-  // for(int i = 30; i<90; i+=5){
-    // elevationController.setTarget(30);
-    // while(!elevationController.isAtPosition()){
-      // yield();
-    // }
-  // }
-
-
-  // elevationController.setTarget(40);
-
-// while(true){
-  // azimuthController.setTarget(-10);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-20);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-30);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-40);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-50);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-60);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-70);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-80);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-// azimuthController.setTarget(-90);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-// }
-      // azimuthController.setTarget(-90);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-80);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-70);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-60);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-50);
-  // while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-  // azimuthController.setTarget(-40);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-// azimuthController.setTarget(-30);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-// azimuthController.setTarget(-20);
-// while(!azimuthController.isAtGoal()){ yield(); } delay(10);
-// azimuthController.setTarget(-10);
-// while(!azimuthController.isAtPosition()){ yield(); } delay(10);
-// 
-// azimuthController.setTarget(10);
-// while(!azimuthController.isAtPosition()){ yield(); } delay(10);
-// }
-
-  elevationController.setTarget(90);
-  // elevationController.setTarget(60);
-
-  // azimuthController.setTarget(40);
-  // azimuthController.setTarget(90);
-  // azimuthController.setTarget(10);
 #endif
 
 
@@ -204,58 +117,50 @@ void setup()
 void loop() 
 {
   // this is called implicitly
-  // yield(); 
+  // yield();
 }
 
 ////////////////////////////////////////////////////////////////////// Local Function Definitions //////////////////////////////////////////////////////////////////////
 
-void interfaceLoop()
-{
-  #ifndef DEBUG
-  interface();
-  #endif
-  // debugPrint();
-}
-
 void debugPrint(){
   #ifdef DEBUG
-  // azimuthController.debugPrint(&SerialUSB);
-  elevationController.debugPrint(&SerialUSB);
-  // azimuthSensor->debugPrint(&SerialUSB);
+  // azimuthSensor->update();
+  azimuthSensor->debugPrint(&SerialUSB);
   // elevationSensor->update();
   // elevationSensor->debugPrint(&SerialUSB);
+  
   #endif
-}
-
-void interface(){
-  serialInterface.read();
 }
 
 
 void configureHardware()
 {
   // configure azimuth hardware
-  azimuthSensor->setSensorPins(azimuthEncoderA, azimuthEncoderB, azimuthLimitSwitch);
-  azimuthSensor->setPhysicalConversionConstant(azimuthConversionRatio);
-  azimuthSensor->setZeroOffset(azimuthZeroOffsetDegrees);
-  azimuthMotorDriver.setPins(azimuthDirection, azimuthStep);
-  azimuthMotorDriver.setPhysicalConstants(DegreesPerStepAzimuth, microStepResolutionAzimuth);
-
-  // configure azimuth motion controller
-  azimuthController.setPhysicalLimits(azimuthMaxVelocity, azimuthMaxAcceleration, azimuthGearRatio);
-  azimuthController.setTuningParameters(azimuthFF, azimuthkP, azimuthkI, azimuthkD, 0.0, azimuthAcceptableError, azimuthAcceptableVelocityError, homingVelocity);
-  azimuthController.setLoopTimeStep(controlLoopTimeStep);
+  azimuthSensor->setSensorPins(azimuthEncoderA, azimuthEncoderB);
+  azimuthSensor->setPhysicalConversionConstant(azimuthDegreesPerTick);
+  azimuthSensor->setZero(azimuthZeroReading);
+  azimuthSensor->setUpdateRate(100);
+  azimuthMotorDriver->setPins(azimuthIN1, azimuthIN2, azimuthPWM);
+  azimuthMotorDriver->setPhysicalConstants(azimuthMaxVelocity/azimuthGearRatio, 0);
 
   // configure elevation hardware
-  elevationSensor->setSensorPins(elevationPotentiometer);
-  elevationSensor->setPhysicalConversionConstant(elevationConversionRatio);
-  elevationSensor->setZero(elevationMinimumValue); // we only do this for the elevation, azimuth zeroes itself
-  elevationMotorDriver.setPins(elevationDirection, elevationStep, elevationDirection2, elevationStep2);
-  elevationMotorDriver.setPhysicalConstants(DegreesPerStepElevation, microStepResolutionElevation);
+  elevationSensor->setSensorPins(elevationSCL, elevationSDA);
+  elevationSensor->setPhysicalConversionConstant(AS5600_RAW_TO_DEGREES * elevationEncoderGearRatio);
+  elevationSensor->setZero(elevationZeroReading); // we only do this for the elevation, azimuth zeroes itself
+  elevationMotorDriver->setPins(elevationDirection, elevationStep, elevationEnable);
+  elevationMotorDriver->setPhysicalConstants(DegreesPerStepElevation, microStepResolutionElevation);
+
+  // configure azimuth motion controller
+  azimuthController.setPhysicalLimits(azimuthMaxVelocity, azimuthMaxAcceleration, azimuthMinimumAngle, azimuthMaximumAngle);
+  azimuthController.setTolerance(azimuthAcceptableError, azimuthAcceptableVelocityError);
+  azimuthController.setTuning(azimuthPositionKP, azimuthPositionKI, azimuthPositionKD, azimuthVelocityKP, azimuthVelocityKI, azimuthVelocityKD, azimuthPositionStrength, azimuthVelocityStrength);
+  azimuthController.setLoopUpdateRate(controlLoopUpdateRate);
+  
 
   // configure elevation motion controller
-  elevationController.setPhysicalLimits(elevationMaxVelocity, elevationMaxAcceleration, elevationGearRatio);
-  elevationController.setTuningParameters(elevationFF, elevationkP, elevationkI, elevationkD, elevationGravityCompFactor, elevationAcceptableError, elevationAcceptableVelocityError, homingVelocity);
-  elevationController.setLoopTimeStep(controlLoopTimeStep);
-  elevationController.setLimits(elevationMinimumAngle, elevationMaximumAngle);
+  elevationController.setPhysicalLimits(elevationMaxVelocity, elevationMaxAcceleration, elevationMinimumAngle, elevationMaximumAngle);
+  elevationController.setTolerance(elevationAcceptableError, elevationAcceptableVelocityError);
+  elevationController.setTuning(elevationPositionKP, elevationPositionKI, elevationPositionKD, elevationVelocityKP, elevationVelocityKI, elevationVelocityKD, elevationPositionStrength, elevationVelocityStrength);
+  elevationController.setLoopUpdateRate(controlLoopUpdateRate);
+
 }
